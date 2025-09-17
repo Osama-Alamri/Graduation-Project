@@ -8,7 +8,7 @@ import io
 try:
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 except KeyError:
-    st.error("لم يتم العثور على مفتاح OPENAI_API_KEY. يرجى تعيينه كمتغير بيئة.")
+    st.error("There is No Key !!")
     st.stop()
 
 
@@ -28,17 +28,17 @@ def get_cv_text(uploaded_file):
                 text += page.extract_text() or ""
         else:
             # رسالة تحذير إذا كان الملف ليس PDF
-            st.warning("نوع الملف غير مدعوم. يرجى رفع ملف PDF فقط.")
+            st.warning("Only PDF Files Allowed")
             return None
             
     except Exception as e:
-        st.error(f"حدث خطأ أثناء قراءة الملف: {e}")
+        st.error(f" An error occurred while reading the file: {e}")
         return None
         
     return text
 
-st.set_page_config(page_title="مقابلة وظيفية بالذكاء الاصطناعي", layout="centered")
-st.title("📝 مقابلة وظيفية بالذكاء الاصطناعي")
+st.set_page_config(page_title="AI Job Interview", layout="centered")
+st.title("📝 AI Job Interview")
 
 # --- إدارة الحالة (Session State) ---
 if "messages" not in st.session_state:
@@ -51,36 +51,39 @@ if "cv_text" not in st.session_state:
 
 
 if not st.session_state.interview_started:
-    st.write("أهلاً بك في محاكي المقابلات الوظيفية. يرجى رفع سيرتك الذاتية (PDF) لبدء المقابلة.")
+    st.write("Welcome to the job interview simulator. Please upload your resume (PDF) to begin the interview.")
     # تم التعديل ليقبل PDF فقط
     uploaded_cv = st.file_uploader(
-        "ارفع سيرتك الذاتية هنا (PDF فقط)", 
+        "Uploead your CV here (PDF only!)", 
         type=["pdf"],
         label_visibility="collapsed"
     )
 
     if uploaded_cv is not None:
-        if st.button("🚀 ابدأ المقابلة"):
-            with st.spinner("...جاري تحليل السيرة الذاتية"):
+        if st.button("Start the Interview🚀 "):
+            with st.spinner("Resume analysis is underway..."):
                 cv_text = get_cv_text(uploaded_cv)
                 if cv_text:
                     st.session_state.cv_text = cv_text
                     st.session_state.interview_started = True
                     
                     system_prompt = f"""
-                    أنت خبير توظيف ومحاور محترف (HR Manager) ومهمتك هي إجراء مقابلة وظيفية مع مرشح.
-                    هذه هي السيرة الذاتية للمرشح:
+                    You are a professional recruiter and interviewer (HR Manager)
+                    and your task is to conduct a job interview with a candidate.
+                    This is the candidate's CV:.
                     ---
                     {st.session_state.cv_text}
                     ---
-                    مهمتك هي كالتالي:
-                    1. ابدأ بالترحيب بالمرشح وتقديم نفسك كمحاور من شركة افتراضية.
-                    2. اطرح عليه 10 أسئلة بشكل متسلسل ومترابط بناءً على خبراته ومهاراته المذكورة في سيرته الذاتية.
-                    3. اطرح سؤالاً واحداً فقط في كل مرة، وانتظر إجابة المرشح قبل طرح السؤال التالي.
-                    4. اجعل الأسئلة متنوعة (أسئلة سلوكية، تقنية، عن خبراته السابقة، إلخ).
-                    5. بعد السؤال العاشر، اشكر المرشح على وقته وأنهِ المقابلة.
+                    Language of the interview is English
+                    
+                    Your mission is as follows:
+                    1. Start by welcoming the candidate and introducing yourself as an interviewer from a hypothetical company.
+                    2. Ask him 10 questions in a sequential and coherent manner based on his experiences and skills mentioned in his CV.
+                    3. Ask only one question at a time, and wait for the candidate's answer before asking the next question.
+                    4. Make the questions varied (behavioral, technical, about his previous experiences, etc.).
+                    5. After the tenth question, thank the candidate for his time and end the interview.
 
-                    ابدأ الآن بترحيبك وطرح السؤال الأول.
+                    Now start with your welcome and ask the first question.
                     """
                     
                     st.session_state.messages.append({"role": "system", "content": system_prompt})
@@ -98,19 +101,19 @@ if not st.session_state.interview_started:
 
 # --- واجهة المحادثة ---
 if st.session_state.interview_started:
-    st.success("تم تحليل السيرة الذاتية بنجاح. المقابلة قد بدأت.")
+    st.success("Your resume has been successfully analyzed. The interview has started.")
 
     for msg in st.session_state.messages:
         if msg["role"] != "system":
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
     
-    if prompt := st.chat_input("اكتب إجابتك هنا..."):
+    if prompt := st.chat_input("Write your Answer here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        with st.spinner("...يفكر المحاور"):
+        with st.spinner("The interviewer thinks..."):
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=st.session_state.messages
@@ -119,21 +122,3 @@ if st.session_state.interview_started:
             st.session_state.messages.append({"role": "assistant", "content": bot_reply})
 
         st.rerun()
-
-
-
-        
-# prompt = st.chat_input("Say something")
-# if prompt:
-#     st.session_state.messages.append({"role": "user", "content": prompt})
-
-#     response = client.chat.completions.create(
-#         model="gpt-4o-mini",
-#         messages=st.session_state.messages
-#     )
-#     bot_reply = response.choices[0].message.content
-#     st.session_state.messages.append({"role": "assistant", "content": bot_reply})
-
-# for msg in st.session_state.messages:
-#     with st.chat_message(msg["role"]):
-#         st.markdown(msg["content"])  
