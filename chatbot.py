@@ -38,7 +38,7 @@ def get_cv_text(uploaded_file):
     return text
 
 st.set_page_config(page_title="AI Job Interview", layout="centered")
-st.title("📝 AI Job Interview")
+st.title("📝 AI Job Interview Simulater")
 
 # --- إدارة الحالة (Session State) ---
 if "messages" not in st.session_state:
