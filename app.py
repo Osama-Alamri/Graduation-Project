@@ -172,38 +172,76 @@ with st.container():
     left, right = st.columns([3, 2])
     with left:
         st.title("🤖 AI Recruitment System (Demo)")
-        st.caption("Login/signup for HR & Candidates. HR gets Jobs, Applicants & Dashboard.")
+        st.caption("Login/signup for HR & Candidates. HR gets Management Jobs & Dashboard.")
     with right:
+        # --- Auth buttons show forms only when pressed ---
+        if "show_login" not in ss: ss.show_login = False
+        if "show_signup" not in ss: ss.show_signup = False
+
+        # if redirected from public Jobs "Login to apply"
+        if ss.pop("_show_login", False):
+            ss.show_login, ss.show_signup = True, False
+
         if ss.user:
             st.success(f"Signed in as {ss.user['name']} ({ss.user['role']})")
-            if st.button("Logout", use_container_width=True):
-                ss.user = None
-                _rerun()
+            colA, colB = st.columns([1,1])
+            with colA:
+                if st.button("Logout", use_container_width=True, key="logout_btn"):
+                    ss.user = None
+                    ss.show_login = False
+                    ss.show_signup = False
+                    _rerun()
+            with colB:
+                st.write("")
         else:
-            forced = bool(ss.pop("_show_login", False))
-            auth_mode = segmented("Auth", options=["Login", "Sign up"], default="Login", key="auth_segmented_main")
-            auth_mode = st.segmented_control("Auth", options=["Login", "Sign up"], default="Login")
-            if auth_mode == "Login":
-                with st.form("login_form"):
-                    email = st.text_input("Email", placeholder="you@example.com")
-                    password = st.text_input("Password", type="password")
-                    submitted = st.form_submit_button("Login")
-                if submitted:
+            c1, c2 = st.columns([1,1])
+            with c1:
+                if st.button("Login", use_container_width=True, key="btn_login_open"):
+                    ss.show_login, ss.show_signup = True, False
+                    _rerun()
+            with c2:
+                if st.button("Sign up", use_container_width=True, key="btn_signup_open"):
+                    ss.show_signup, ss.show_login = True, False
+                    _rerun()
+
+            # ---- Login form (shown only after pressing Login) ----
+            if ss.show_login:
+                with st.form("login_form", clear_on_submit=False):
+                    st.markdown("**Login**")
+                    email = st.text_input("Email", placeholder="you@example.com", key="login_email")
+                    password = st.text_input("Password", type="password", key="login_pw")
+                    colL, colR = st.columns([1,1])
+                    with colL:
+                        submit_login = st.form_submit_button("Login", use_container_width=True)
+                    with colR:
+                        cancel_login = st.form_submit_button("Cancel", use_container_width=True, help="Hide this form")
+                if submit_login:
                     user = authenticate(email, password)
                     if user:
                         ss.user = {k: v for k, v in user.items() if k != "password_hash"}
+                        ss.show_login = False
                         _rerun()
                     else:
                         st.error("Invalid email or password")
-            else:
-                with st.form("signup_form"):
-                    name = st.text_input("Full name")
-                    email = st.text_input("Email", placeholder="you@example.com")
-                    role = st.selectbox("Role", ["candidate", "hr"], index=0)
-                    password = st.text_input("Password", type="password")
-                    confirm = st.text_input("Confirm password", type="password")
-                    submitted = st.form_submit_button("Create account")
-                if submitted:
+                elif cancel_login:
+                    ss.show_login = False
+                    _rerun()
+
+            # ---- Signup form (shown only after pressing Sign up) ----
+            if ss.show_signup:
+                with st.form("signup_form", clear_on_submit=False):
+                    st.markdown("**Create account**")
+                    name = st.text_input("Full name", key="su_name")
+                    email = st.text_input("Email", placeholder="you@example.com", key="su_email")
+                    role = st.selectbox("Role", ["candidate", "hr"], index=0, key="su_role")
+                    password = st.text_input("Password", type="password", key="su_pw1")
+                    confirm = st.text_input("Confirm password", type="password", key="su_pw2")
+                    colL, colR = st.columns([1,1])
+                    with colL:
+                        submit_signup = st.form_submit_button("Create account", use_container_width=True)
+                    with colR:
+                        cancel_signup = st.form_submit_button("Cancel", use_container_width=True)
+                if submit_signup:
                     if not name or not email or not password:
                         st.error("Please fill all fields")
                     elif password != confirm:
@@ -214,10 +252,15 @@ with st.container():
                         try:
                             create_user(name, email, role, password)
                             st.success("Account created! Please log in.")
+                            ss.show_signup = False
+                            ss.show_login = True
                         except sqlite3.IntegrityError:
                             st.error("Email already registered")
                         except Exception as e:
                             st.error(f"Error: {e}")
+                elif cancel_signup:
+                    ss.show_signup = False
+                    _rerun()
 
 # ============================ PUBLIC TABS ============================
 homeTab, aboutTab, contactTab, publicJobsTab = st.tabs(["Home", "About us", "Contact", "Jobs"])
@@ -268,8 +311,6 @@ with publicJobsTab:
                     st.success("Applied!")
             else:
                 st.info("Switch to a Candidate account to apply.")
-    st.header("Contact")
-    st.write("Get in touch: hello@example.com")
 
 # ============================ ROLE-BASED AREA ============================
 if ss.user:
@@ -355,6 +396,84 @@ if ss.user:
                             st.markdown("**Manual Questions:**")
                             for i, q in enumerate(extras, 1):
                                 st.write(f"{i}. {q}")
+
+                        # ---- Actions: Edit / Delete ----
+                        act1, act2, act3 = st.columns([1,1,2])
+                        with act1:
+                            if st.button("✏️ Edit", key=f"edit_btn_{jid}"):
+                                ss["edit_job_id"] = jid
+                                _rerun()
+                        with act2:
+                            if st.button("🗑️ Delete", key=f"del_btn_{jid}"):
+                                # Immediate delete (no confirmation)
+                                conn.execute("DELETE FROM jobs WHERE id=?", (jid,))
+                                conn.commit()
+                                st.success("Job deleted")
+                                _rerun()
+
+                        # ---- Edit form (inline) ----
+                        if ss.get("edit_job_id") == jid:
+                            st.divider()
+                            st.markdown("#### Edit Job")
+                            # fetch latest values again for safety
+                            j2 = conn.execute(
+                                "SELECT title, description, questions_count, cv_weight, req_weight, extra_questions, location FROM jobs WHERE id=?",
+                                (jid,),
+                            ).fetchone()
+                            cur_title, cur_reqs, cur_qn, cur_cv_w, cur_req_w, cur_extra_json, cur_loc = j2
+                            cur_extras = json.loads(cur_extra_json) if cur_extra_json else []
+                            with st.form(f"edit_job_form_{jid}"):
+                                title_e = st.text_input("Job Title", value=cur_title, key=f"e_title_{jid}")
+                                reqs_e = st.text_area("Job Requirements", value=cur_reqs, key=f"e_reqs_{jid}")
+                                location_e = st.text_input("Location", value=(cur_loc or ""), key=f"e_loc_{jid}")
+                                q_count_e = st.number_input("Number of questions", min_value=0, max_value=100, value=int(cur_qn), step=1, key=f"e_qn_{jid}")
+                                cA, cB = st.columns(2)
+                                with cA:
+                                    cv_pct_e = st.slider("Questions from CV (%)", 0, 100, int(round(cur_cv_w*100)), step=5, key=f"e_cv_{jid}")
+                                with cB:
+                                    req_pct_e = st.slider("Questions from Requirements (%)", 0, 100, int(round(cur_req_w*100)), step=5, key=f"e_req_{jid}")
+                                extra_e = st.text_area(
+                                    "Manual questions (optional, one per line)",
+                                    value="\n".join(cur_extras),
+                                    key=f"e_extra_{jid}",
+                                )
+                                btns1, btns2 = st.columns([1,1])
+                                with btns1:
+                                    save_edit = st.form_submit_button("Save changes")
+                                with btns2:
+                                    cancel_edit = st.form_submit_button("Cancel")
+                            if save_edit:
+                                if not title_e or not reqs_e:
+                                    st.error("Please provide both Job Title and Job Requirements.")
+                                elif cv_pct_e + req_pct_e != 100:
+                                    st.error("The sum of CV% and Requirement% must equal 100.")
+                                else:
+                                    extras_e = [q.strip() for q in extra_e.splitlines() if q.strip()]
+                                    conn.execute(
+                                        """
+                                        UPDATE jobs
+                                        SET title=?, description=?, questions_count=?, cv_weight=?, req_weight=?, extra_questions=?, location=?
+                                        WHERE id=?
+                                        """,
+                                        (
+                                            title_e,
+                                            reqs_e,
+                                            int(q_count_e),
+                                            float(cv_pct_e)/100.0,
+                                            float(req_pct_e)/100.0,
+                                            json.dumps(extras_e),
+                                            location_e,
+                                            jid,
+                                        ),
+                                    )
+                                    conn.commit()
+                                    st.success("Job updated")
+                                    ss["edit_job_id"] = None
+                                    _rerun()
+                            elif cancel_edit:
+                                ss["edit_job_id"] = None
+                                _rerun()
+
 
                         # ---- Leaderboard (Applications for this job) ----
                         with st.expander("📊 Leaderboard (Applications)"):
