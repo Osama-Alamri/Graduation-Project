@@ -572,6 +572,3 @@ if ss.user:
             st.write(f"**Name:** {ss.user['name']}")
             st.write(f"**Email:** {ss.user['email']}")
             st.write(f"**Role:** {ss.user['role']}")
-
-else:
-    st.info("🔐 Log in or sign up (top-right) to access role-based tabs.")
