@@ -66,7 +66,7 @@ if __name__ == "__main__":
     
     # Save the DataFrame to a CSV file
     output_path = "data/cleaned_resumes.csv"
-    df.to_csv(output_path, index=False)
-    
+    df.to_csv(output_path, index=False, sep=';')  
+      
     print(f"Successfully processed {len(df)} resumes.")
     print(f"Output saved to: {output_path}")
