@@ -2,6 +2,11 @@ import os
 import pdfplumber
 import pandas as pd
 import re
+import unicodedata
+import inflect
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import LancasterStemmer, WordNetLemmatizer
 
 # The path to the folder containing your resume PDF files
 file_path = "./resumes"
@@ -14,16 +19,79 @@ def extract_text_from_pdf(file_path):
             page_text = page.extract_text()
             if page_text:
                 text += page_text + " "
-    return text.strip()
 
-def clean_text(text):
-    """
-    Cleans the extracted text by removing extra newlines, non-breaking spaces,
-    and multiple consecutive spaces.
-    """
     text = text.replace('\n', ' ').replace('\xa0', ' ')
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
+
+def remove_non_ascii(words):
+    """Remove non-ASCII characters from a list of tokenized words."""
+    new_words = []
+    for word in words:
+        new_word = unicodedata.normalize('NFKD', word).encode('ascii', 'ignore').decode('utf-8', 'ignore')
+        new_words.append(new_word)
+    return new_words
+
+def to_lowercase(words):
+    """Convert all characters to lowercase from a list of tokenized words."""
+    new_words = []
+    for word in words:
+        new_words.append(word.lower())
+    return new_words
+
+def remove_punctuation(words):
+    """Remove punctuation from a list of tokenized words."""
+    new_words = []
+    for word in words:
+        new_word = re.sub(r'[^\w\s]', '', word)
+        if new_word != '':
+            new_words.append(new_word)
+    return new_words
+
+def replace_numbers(words):
+    """Replace all integer occurrences in a list of tokenized words with textual representation."""
+    p = inflect.engine()
+    new_words = []
+    for word in words:
+        if word.isdigit():
+            new_word = p.number_to_words(word)
+            new_words.append(new_word)
+        else:
+            new_words.append(word)
+    return new_words
+
+def remove_stopwords(words):
+    """Remove stop words from a list of tokenized words."""
+    new_words = []
+    for word in words:
+        if word not in stopwords.words('english'):
+            new_words.append(word)
+    return new_words
+
+def lemmatize_verbs(words):
+    """Lemmatize verbs in a list of tokenized words."""
+    lemmatizer = WordNetLemmatizer()
+    lemmas = []
+    for word in words:
+        lemma = lemmatizer.lemmatize(word, pos='v')
+        lemmas.append(lemma)
+    return lemmas
+
+def clean_text(text):
+    
+
+    words = word_tokenize(text)
+    # Call the helper functions in a logical order
+    #words = to_lowercase(words)
+    #words = remove_punctuation(words)
+    words = remove_non_ascii(words)
+    #words = replace_numbers(words)
+    words = remove_stopwords(words)
+    words = lemmatize_verbs(words)
+    
+    return " ".join(words)
+
+
 
 def extract_sections_with_regex(text):
     """
@@ -101,11 +169,14 @@ def process_resumes(folder_path):
             # 1. Extract raw text from the PDF
             raw_text = extract_text_from_pdf(full_file_path)
             
-            # 2. Clean the raw text into a single string
-            cleaned_text = clean_text(raw_text)
-            
             # 3. Extract sections using the regex function
-            sections = extract_sections_with_regex(cleaned_text)
+            sections = extract_sections_with_regex(raw_text)
+
+            # 2. Clean the raw text into a single string
+            for k in sections:
+                if sections[k]:
+                    sections[k] = clean_text(sections[k])
+            
             
             # 4. Append the data to our list
             resume_info = {
