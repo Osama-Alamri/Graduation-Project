@@ -7,6 +7,24 @@ import inflect
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import LancasterStemmer, WordNetLemmatizer
+import nltk
+import locale
+
+sep = ";" if locale.getdefaultlocale()[0] in ["ar_SA", "fr_FR", "de_DE"] else ","
+
+
+# 🔽 ADD THIS BLOCK RIGHT HERE
+resources = ["punkt", "punkt_tab", "stopwords", "wordnet"]
+for r in resources:
+    try:
+        if "punkt" in r:
+            nltk.data.find(f"tokenizers/{r}")
+        else:
+            nltk.data.find(f"corpora/{r}")
+    except LookupError:
+        nltk.download(r)
+# 🔼 END OF BLOCK
+
 
 # The path to the folder containing your resume PDF files
 file_path = "./resumes"
@@ -82,10 +100,10 @@ def clean_text(text):
 
     words = word_tokenize(text)
     # Call the helper functions in a logical order
-    #words = to_lowercase(words)
-    #words = remove_punctuation(words)
+    words = to_lowercase(words)
+    words = remove_punctuation(words)
     words = remove_non_ascii(words)
-    #words = replace_numbers(words)
+    words = replace_numbers(words)
     words = remove_stopwords(words)
     words = lemmatize_verbs(words)
     
@@ -202,7 +220,7 @@ if __name__ == "__main__":
     
     # Save the DataFrame to a CSV file
     output_path = "data/cleaned_resumes.csv"
-    df.to_csv(output_path, index=False, sep=';')
+    df.to_csv(output_path, index=False, sep=sep)
         
     print(f"\nSuccessfully processed {len(df)} resumes.")
     print(f"Output saved to: {output_path}")
