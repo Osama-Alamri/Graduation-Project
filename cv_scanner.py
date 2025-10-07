@@ -138,6 +138,9 @@ def extract_sections_with_regex(text):
     # Find all matches of section headers in the text
     matches = list(pattern.finditer(text))
 
+    print("Detected section headers:", [m.group(0) for m in matches])
+
+
     if not matches:
         return sections # Return empty if no headers are found
 
