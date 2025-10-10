@@ -38,8 +38,10 @@ def extract_text_from_pdf(file_path):
             if page_text:
                 text += page_text + " "
 
-    text = text.replace('\n', ' ').replace('\xa0', ' ')
-    text = re.sub(r'\s+', ' ', text)
+    #text = text.replace('\n', ' ').replace('\xa0', ' ')
+    #text = re.sub(r'\s+', ' ', text)
+    text = text.replace('\xa0', ' ')
+    text = re.sub(r' {2,}', ' ', text)
     return text.strip()
 
 def remove_non_ascii(words):
@@ -132,7 +134,8 @@ def extract_sections_with_regex(text):
 
     # Create a regex pattern to find any of the section headers
     # The pattern looks for a keyword at the start of the string or preceded by a space
-    pattern_text = r'(?i)\b(' + '|'.join(all_keywords) + r')\b'
+    pattern_text = r'(?im)(?:^|\n|\r)\s*\b(' + '|'.join(all_keywords) + r')\b'
+    #pattern_text = r'(?i)\b(' + '|'.join(all_keywords) + r')\b'
     pattern = re.compile(pattern_text)
 
     # Find all matches of section headers in the text
@@ -149,15 +152,15 @@ def extract_sections_with_regex(text):
         current_match = matches[i]
         
         # Identify which section this header belongs to
-        current_header_text = current_match.group(0).lower()
+        current_header_text = current_match.group(1).strip().lower()  # group(1) فقط الكلمة بدون \n أو فراغ
         current_section_name = None
         for section_name, keywords in section_keywords.items():
-            if current_header_text in keywords:
-                current_section_name = section_name
+            for keyword in keywords:
+                if keyword.lower() == current_header_text:
+                    current_section_name = section_name
+                    break
+            if current_section_name:
                 break
-        
-        if not current_section_name:
-            continue
             
         # Determine the start and end indices of the section's content
         start_index = current_match.end()
