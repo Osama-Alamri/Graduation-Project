@@ -30,10 +30,25 @@ for _, row in resumes_df.iterrows():
         section_text = str(row.get(section, ""))
         jd_section_text = jd.get(section, "")
         sim = compute_similarity(section_text, jd_section_text) if section_text.strip() else 0.0
-        resume_scores[section + "_match"] = round(sim, 3)
+        resume_scores[section + "_match"] = round(sim * 100)
     
+        # الخطوة 1: الحسابات تتم كأرقام عادية
     section_scores = [resume_scores[s] for s in resume_scores if "_match" in s]
-    resume_scores["overall_match"] = round(sum(section_scores)/len(section_scores), 3)
+    
+    # إضافة شرط لتجنب القسمة على صفر
+    if section_scores:
+        overall_score = round(sum(section_scores) / len(section_scores))
+    else:
+        overall_score = 0
+        
+    resume_scores["overall_match"] = overall_score
+
+    # الخطوة 2: بعد انتهاء الحسابات، نقوم بتحويل الأرقام إلى نص مع إضافة علامة %
+    for key in resume_scores:
+        if "_match" in key:
+            resume_scores[key] = f"{resume_scores[key]}%"
+            
+            
     scores.append(resume_scores)
 
 results_df = pd.DataFrame(scores)
