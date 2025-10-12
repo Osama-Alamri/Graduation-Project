@@ -9,6 +9,8 @@ from nltk.corpus import stopwords
 from nltk.stem import LancasterStemmer, WordNetLemmatizer
 import nltk
 import locale
+import openai
+import json
 
 sep = ";" if locale.getdefaultlocale()[0] in ["ar_SA", "fr_FR", "de_DE"] else ","
 
@@ -25,7 +27,76 @@ for r in resources:
         nltk.download(r)
 # 🔼 END OF BLOCK
 
+###################################################################################################################
+# AI Function
+###################################################################################################################
 
+# 🔴 REPLACE your old function with this new one 🔴
+
+def get_experience_years_with_ai(experience_text: str) -> float:
+    """
+    Uses the OpenAI API to analyze text and return the total years of experience.
+    """
+    # Using the current date for "Present" calculations.
+    # It's Sunday, October 12, 2025 in Riyadh.
+    current_date = "October 12, 2025"
+
+    # --- NEW, MORE ADVANCED PROMPT ---
+    prompt = f"""
+    You are an expert HR data extraction assistant. Your task is to analyze the 'Work Experience' section of a resume and calculate the TOTAL unique number of years of professional experience, handling overlaps correctly.
+
+    Instructions:
+    1.  Identify all job entries with their start and end dates.
+    2.  If an end date is 'Present', 'Current', or similar, assume the end date is {current_date}.
+    3.  Calculate the duration of each individual job.
+    4.  **Crucially, you must handle overlapping time periods. Do not double-count months where the person held two jobs simultaneously. The final output must be the total duration of time they were employed.**
+    5.  Sum up the unique, non-overlapping durations to get a single total number of years.
+    6.  Provide the final number rounded to one decimal place (e.g., 8.5).
+    7.  You MUST respond ONLY with a JSON object in the format {{"total_years": <number>}}. Do not include any other text or explanations.
+    8.  If you cannot find any valid dates, return {{"total_years": 0}}.
+
+    Example of how to handle overlaps:
+    - Input Text: "Senior Developer (Jan 2020 - Present) and part-time Consultant (May 2022 - Dec 2023)."
+    - Calculation:
+        - Job 1 is Jan 2020 to Oct 2025.
+        - Job 2 is May 2022 to Dec 2023.
+        - The entire period of employment is from Jan 2020 to Oct 2025, as the second job falls completely within the first.
+        - Total unique duration is from Jan 2020 to Oct 2025 = 5.8 years.
+    - Your Output: {{"total_years": 5.8}}
+
+    ---
+    Resume Experience Section to Analyze:
+    {experience_text}
+    ---
+    """
+
+    try:
+        if not openai.api_key and not os.getenv('OPENAI_API_KEY'):
+            print("Error: OPENAI_API_KEY environment variable not set.")
+            return 0.0
+
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "You are a helpful HR assistant designed to output JSON and handle date overlaps."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1 # Lower temperature for more consistent, factual results
+        )
+        
+        result_json = json.loads(response.choices[0].message.content)
+        total_years = result_json.get("total_years", 0)
+        
+        return int(float(total_years))
+
+    except Exception as e:
+        print(f"An error occurred with the AI API call: {e}")
+        return 0.0
+
+###################################################################################################################
+# AI Function
+###################################################################################################################
 # The path to the folder containing your resume PDF files
 file_path = "./resumes"
 
@@ -174,6 +245,8 @@ def extract_sections_with_regex(text):
 
     return sections
 
+# 🔴 REPLACE your old function with this new one for debugging 🔴
+
 def process_resumes(folder_path):
     """
     Processes all PDF resumes in a folder, extracts the full text,
@@ -187,27 +260,43 @@ def process_resumes(folder_path):
     # Loop through each file in the specified folder
     for filename in files_to_process:
         try:
+            print(f"\n========================================================")
             print(f"--- Processing {filename} ---")
+            
+            experience_in_years = 0.0
+            
             full_file_path = os.path.join(folder_path, filename)
             
             # 1. Extract raw text from the PDF
             raw_text = extract_text_from_pdf(full_file_path)
             
-            # 3. Extract sections using the regex function
+            # 2. Extract sections using the regex function
             sections = extract_sections_with_regex(raw_text)
 
-            # 2. Clean the raw text into a single string
+            # 3. Get the raw experience text
+            experience_text = sections.get('Experience', '')
+            
+            
+            # 4. Analyze the text if it's valid
+            if experience_text.strip() and re.search(r'\b(19|20)\d{2}\b', experience_text):
+                print(f"Valid experience section found. Analyzing with AI...")
+                experience_in_years = get_experience_years_with_ai(experience_text)
+                print(f" -> Found {experience_in_years} years.")
+            else:
+                print(f" -> Skipping AI analysis: 'Experience' section appears empty or invalid.")
+
+            # 5. Clean the raw text for cosine similarity
             for k in sections:
                 if sections[k]:
                     sections[k] = clean_text(sections[k])
             
-            
-            # 4. Append the data to our list
+            # 6. Append the data to our list
             resume_info = {
                 "resume_id": filename.split(".")[0],
-                "filename": filename
+                "filename": filename,
+                "total_experience_years": experience_in_years
             }
-            resume_info.update(sections) # Add all the extracted sections
+            resume_info.update(sections)
             resume_data.append(resume_info)
         except Exception as e:
             print(f"Could not process {filename}. Error: {e}")
