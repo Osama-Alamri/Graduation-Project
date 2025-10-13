@@ -5,6 +5,13 @@ import PyPDF2  # مكتبة لقراءة ملفات PDF
 import io
 
 
+# load .env into os.environ
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 try:
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 except KeyError:
