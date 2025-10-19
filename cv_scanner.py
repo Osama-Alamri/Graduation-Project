@@ -9,8 +9,7 @@ from nltk.corpus import stopwords
 from nltk.stem import LancasterStemmer, WordNetLemmatizer
 import nltk
 import locale
-import openai
-import json
+from datetime import datetime, date
 
 sep = ";" if locale.getdefaultlocale()[0] in ["ar_SA", "fr_FR", "de_DE"] else ","
 
@@ -31,88 +30,163 @@ for r in resources:
 # AI Function
 ###################################################################################################################
 
-# 🔴 REPLACE your old function with this new one 🔴
+# 🔴 REPLACE your AI function one last time with this definitive version 🔴
 
-def get_experience_years_with_ai(experience_text: str) -> float:
+# 🔴 ADD THIS NEW FUNCTION. It replaces the AI.
+
+def calculate_experience_python(text: str) -> float:
     """
-    Uses the OpenAI API to analyze text and return the total years of experience.
+    Calculates the total unique, non-overlapping years of experience
+    from a block of text containing job/date lines using Python.
+    
+    Handles "Month YYYY" and "MM/YYYY" formats.
     """
-    # Using the current date for "Present" calculations.
-    # It's Sunday, October 12, 2025 in Riyadh.
-    current_date = "October 12, 2025"
-
-    # --- NEW, MORE ADVANCED PROMPT ---
-    prompt = f"""
-    You are an expert HR data extraction assistant. Your task is to analyze the 'Work Experience' section of a resume and calculate the TOTAL unique number of years of professional experience, handling overlaps correctly.
-
-    Instructions:
-    1.  Identify all job entries with their start and end dates.
-    2.  If an end date is 'Present', 'Current', or similar, assume the end date is {current_date}.
-    3.  Calculate the duration of each individual job.
-    4.  **Crucially, you must handle overlapping time periods. Do not double-count months where the person held two jobs simultaneously. The final output must be the total duration of time they were employed.**
-    5.  Sum up the unique, non-overlapping durations to get a single total number of years.
-    6.  Provide the final number rounded to one decimal place (e.g., 8.5).
-    7.  You MUST respond ONLY with a JSON object in the format {{"total_years": <number>}}. Do not include any other text or explanations.
-    8.  If you cannot find any valid dates, return {{"total_years": 0}}.
-
-    Example of how to handle overlaps:
-    - Input Text: "Senior Developer (Jan 2020 - Present) and part-time Consultant (May 2022 - Dec 2023)."
-    - Calculation:
-        - Job 1 is Jan 2020 to Oct 2025.
-        - Job 2 is May 2022 to Dec 2023.
-        - The entire period of employment is from Jan 2020 to Oct 2025, as the second job falls completely within the first.
-        - Total unique duration is from Jan 2020 to Oct 2025 = 5.8 years.
-    - Your Output: {{"total_years": 5.8}}
-
-    ---
-    Resume Experience Section to Analyze:
-    {experience_text}
-    ---
-    """
-
-    try:
-        if not openai.api_key and not os.getenv('OPENAI_API_KEY'):
-            print("Error: OPENAI_API_KEY environment variable not set.")
-            return 0.0
-
-        response = openai.chat.completions.create(
-            model="gpt-4o",
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": "You are a helpful HR assistant designed to output JSON and handle date overlaps."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1 # Lower temperature for more consistent, factual results
-        )
+    # Define current date for 'Present'
+    today = datetime.now().date()
+    
+    # Map for converting short month names to numbers
+    month_map = {
+        'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+        'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+    }
+    
+    # This pattern handles both "Month YYYY" and "MM/YYYY" and "Present"
+    date_pattern = re.compile(
+        r"""
+        # Format 1: "Month YYYY"
+        (\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\b) # Month (Group 2)
+        \s*
+        (\d{4}) # Year (Group 3)
         
-        result_json = json.loads(response.choices[0].message.content)
-        total_years = result_json.get("total_years", 0)
+        | # OR
         
-        return int(float(total_years))
+        # Format 2: "MM/YYYY"
+        \b(\d{1,2})\s*/\s*(\d{4})\b # Month (Group 4), Year (Group 5)
+        
+        | # OR
+        
+        # Format 3: "Present" / "Current"
+        (\b(Present|Current)\b) # Present (Group 7)
+        """,
+        re.IGNORECASE | re.VERBOSE
+    )
+    
+    intervals = []
+    for line in text.split('\n'):
+        matches = list(date_pattern.finditer(line))
+        
+        # We need at least two dates (start and end) to form a range
+        if len(matches) >= 2:
+            try:
+                # --- Parse Start Date ---
+                start_match = matches[0]
+                start_month = 0
+                start_year = 0
+                
+                if start_match.group(2): # "Month YYYY" format
+                    start_month_str = start_match.group(2).lower()[:3]
+                    start_month = month_map[start_month_str]
+                    start_year = int(start_match.group(3))
+                elif start_match.group(4): # "MM/YYYY" format
+                    start_month = int(start_match.group(4))
+                    start_year = int(start_match.group(5))
+                
+                start_date = date(start_year, start_month, 1)
+                
+                # --- Parse End Date ---
+                end_match = matches[1]
+                end_date = None
+                
+                if end_match.group(7): # It's 'Present' or 'Current'
+                    end_date = today
+                else:
+                    end_month = 0
+                    end_year = 0
+                    if end_match.group(2): # "Month YYYY" format
+                        end_month_str = end_match.group(2).lower()[:3]
+                        end_month = month_map[end_month_str]
+                        end_year = int(end_match.group(3))
+                    elif end_match.group(4): # "MM/YYYY" format
+                        end_month = int(end_match.group(4))
+                        end_year = int(end_match.group(5))
 
-    except Exception as e:
-        print(f"An error occurred with the AI API call: {e}")
+                    # Use 1st of *next* month for correct duration
+                    if end_month == 12:
+                        end_date = date(end_year + 1, 1, 1)
+                    else:
+                        end_date = date(end_year, end_month + 1, 1)
+
+                if start_date and end_date:
+                    intervals.append((start_date, end_date))
+                
+            except Exception as e:
+                print(f"Error parsing date line: {line} | Error: {e}")
+
+    if not intervals:
         return 0.0
 
+    # --- Merge Overlapping Intervals ---
+    intervals.sort(key=lambda x: x[0])
+    
+    merged_intervals = []
+    if not intervals:
+        return 0.0
+        
+    merged_intervals.append(intervals[0])
+    
+    for i in range(1, len(intervals)):
+        current_start, current_end = intervals[i]
+        last_start, last_end = merged_intervals[-1]
+        
+        if current_start <= last_end: # Check for overlap
+            merged_intervals[-1] = (last_start, max(last_end, current_end))
+        else:
+            merged_intervals.append((current_start, current_end))
+    
+    # --- Sum Durations ---
+    total_days = 0
+    for start, end in merged_intervals:
+        total_days += (end - start).days
+
+    total_years = total_days / 365.25
+    
+    return round(total_years, 1)
+    
 ###################################################################################################################
 # AI Function
 ###################################################################################################################
+
+
+
 # The path to the folder containing your resume PDF files
 file_path = "./resumes"
+
+# 🔴 REPLACE this function in cv_scanner.py 🔴
 
 def extract_text_from_pdf(file_path):
     """Extracts all text from a given PDF file."""
     text = ""
     with pdfplumber.open(file_path) as pdf:
         for page in pdf.pages:
-            page_text = page.extract_text()
+            
+            # --- THIS IS THE CRITICAL FIX ---
+            # We add 'x_tolerance=3' to force pdfplumber to insert
+            # spaces between words that are close horizontally.
+            # This fixes the "CompanyNameJuly" -> "CompanyName July" problem.
+            page_text = page.extract_text(x_tolerance=3) 
+            
             if page_text:
-                text += page_text + " "
+                text += page_text + "\n" # Use a newline to separate pages
 
-    #text = text.replace('\n', ' ').replace('\xa0', ' ')
-    #text = re.sub(r'\s+', ' ', text)
+    # --- IMPROVED CLEANUP ---
+    # We keep newlines (\n) because your section parser needs them.
+    # 1. Replace non-breaking spaces
     text = text.replace('\xa0', ' ')
+    # 2. Collapse multiple spaces into one space
     text = re.sub(r' {2,}', ' ', text)
+    # 3. (Optional but good) Remove lines that are just whitespace
+    text = re.sub(r'\n\s+\n', '\n', text) 
+    
     return text.strip()
 
 def remove_non_ascii(words):
@@ -184,36 +258,35 @@ def clean_text(text):
 
 
 
+# 🔴 REPLACE your entire section extractor with this new, more robust version 🔴
+
 def extract_sections_with_regex(text):
     """
-    Extracts content for predefined sections from resume text using regex.
+    Extracts content for predefined sections from resume text using a more
+    robust method that finds all headers first before slicing.
     """
-    # Define keywords for each section. You can add more variations here.
+    # Define keywords for each section.
     section_keywords = {
-        'Experience': ['experience', 'work experience', 'professional experience', 'employment history', 'relevant experience'],
+        'Experience': ['experience', 'work experience', 'professional experience', 'employment history', 'relevant experience','Professional Experience','work history'],
         'Education': ['education', 'academic background', 'education and training'],
-        'Skills': ['skills', 'technical skills', 'core competencies', 'programming languages', 'technologies'],
+        'Skills': ['skills', 'technical skills', 'core competencies', 'programming languages'],
         'Projects': ['projects', 'personal projects', 'academic projects'],
         'Certificates / Courses': ['certifications', 'certificates', 'courses', 'professional development', 'licenses & certifications']
     }
 
-    # Initialize a dictionary to hold the extracted text for each section
     sections = {key: "" for key in section_keywords.keys()}
     
     # Flatten the list of all keywords for the main regex pattern
     all_keywords = [item for sublist in section_keywords.values() for item in sublist]
-
-    # Create a regex pattern to find any of the section headers
-    # The pattern looks for a keyword at the start of the string or preceded by a space
-    pattern_text = r'(?im)(?:^|\n|\r)\s*\b(' + '|'.join(all_keywords) + r')\b'
-    #pattern_text = r'(?i)\b(' + '|'.join(all_keywords) + r')\b'
-    pattern = re.compile(pattern_text)
+    
+    # This pattern finds any of the keywords at the beginning of a line,
+    # ignoring case and matching multiline.
+    pattern = re.compile(r'(?im)^(?:[ \t\r\f\v]*\b(' + '|'.join(all_keywords) + r')\b)', re.MULTILINE)
 
     # Find all matches of section headers in the text
     matches = list(pattern.finditer(text))
 
-    print("Detected section headers:", [m.group(0) for m in matches])
-
+    print("Detected section headers:", [m.group(1) for m in matches])
 
     if not matches:
         return sections # Return empty if no headers are found
@@ -223,25 +296,30 @@ def extract_sections_with_regex(text):
         current_match = matches[i]
         
         # Identify which section this header belongs to
-        current_header_text = current_match.group(1).strip().lower()  # group(1) فقط الكلمة بدون \n أو فراغ
+        # Group 1 contains just the keyword text (e.g., "experience")
+        current_header_text = current_match.group(1).strip().lower()
         current_section_name = None
         for section_name, keywords in section_keywords.items():
-            for keyword in keywords:
-                if keyword.lower() == current_header_text:
-                    current_section_name = section_name
-                    break
-            if current_section_name:
+            if current_header_text in keywords:
+                current_section_name = section_name
                 break
+        
+        if not current_section_name:
+            continue
             
         # Determine the start and end indices of the section's content
         start_index = current_match.end()
         end_index = matches[i+1].start() if i + 1 < len(matches) else len(text)
         
-        # Extract the content, strip whitespace, and remove any leading colons or bullets
+        # Extract the content, strip whitespace, and remove leading punctuation
         section_content = text[start_index:end_index].strip()
-        section_content = re.sub(r'^[:\s•-]+', '', section_content).strip()
+        section_content = re.sub(r'^[:\s•*-]+', '', section_content).strip()
         
-        sections[current_section_name] = section_content
+        # Append content if the section has been found before (e.g., multiple 'skills' sections)
+        if sections.get(current_section_name):
+             sections[current_section_name] += "\n" + section_content
+        else:
+             sections[current_section_name] = section_content
 
     return sections
 
@@ -276,16 +354,87 @@ def process_resumes(folder_path):
             # 3. Get the raw experience text
             experience_text = sections.get('Experience', '')
             
-            
+            # --- NEW STEP 3.5: Pre-filter text (High-Precision Final Version) ---
+            filtered_experience_text = ""
+            if experience_text.strip():
+                date_lines = []
+                
+                # --- We now use two, much stricter patterns ---
+
+                # Pattern 1: Finds "Month YYYY ... to ... (Month YYYY | Present)"
+                # This is high-confidence.
+                date_range_pattern = re.compile(
+                    r"""
+                    ( # Start of the whole pattern
+                        \b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\b # Month
+                        \s*\d{4} # Year
+                    ) # End of start date
+                    .* # Any text in between
+                    (to|–|-) # Separator
+                    .* # Any text in between
+                    ( # Start of the end date
+                        \b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\b # Month
+                        \s*\d{4} # Year
+                        | # OR
+                        \b(Present|Current)\b # Present/Current
+                    ) # End of the end date
+                    """,
+                    re.IGNORECASE | re.VERBOSE
+                )
+
+                # Pattern 2: Finds "MM/YYYY ... to ... (MM/YYYY | Present)"
+                # This is also high-confidence.
+                mm_yyyy_range_pattern = re.compile(
+                    r"""
+                    ( # Start of the whole pattern
+                        \b\d{1,2}/\d{4}\b # MM/YYYY
+                    ) # End of start date
+                    .* # Any text in between
+                    (to|–|-) # Separator
+                    .* # Any text in between
+                    ( # Start of the end date
+                        \b\d{1,2}/\d{4}\b # MM/YYYY
+                        | # OR
+                        \b(Present|Current)\b # Present/Current
+                    ) # End of the end date
+                    """,
+                    re.IGNORECASE | re.VERBOSE
+                )
+
+                for line in experience_text.split('\n'):
+                    # The line must match ONE of our high-precision patterns
+                    if date_range_pattern.search(line) or \
+                    mm_yyyy_range_pattern.search(line):
+                        
+                        date_lines.append(line.strip())
+                        
+                filtered_experience_text = "\n".join(date_lines)
+
+
+            # 🔴 In process_resumes, modify Step 4 to this:
+
             # 4. Analyze the text if it's valid
-            if experience_text.strip() and re.search(r'\b(19|20)\d{2}\b', experience_text):
-                print(f"Valid experience section found. Analyzing with AI...")
-                experience_in_years = get_experience_years_with_ai(experience_text)
+            # We check our 'filtered_experience_text'
+            
+            if filtered_experience_text:
+                print(f"Valid experience lines found. Calculating...")
+                
+                # Your debug print, showing the CLEANED text
+                print(f"\n--- DEBUG: FILTERED TEXT SENT TO CALCULATOR ---\n{filtered_experience_text}\n--- END DEBUG ---\n")
+                
+                # --- THIS IS THE ONLY CHANGE IN THIS BLOCK ---
+                # We call our reliable Python function instead of the AI
+                experience_in_years = calculate_experience_python(filtered_experience_text)
+                
                 print(f" -> Found {experience_in_years} years.")
             else:
-                print(f" -> Skipping AI analysis: 'Experience' section appears empty or invalid.")
+                print(f" -> Skipping analysis: 'Experience' section appears empty or has no valid dates.")
 
-            # 5. Clean the raw text for cosine similarity
+            # 🔴 END OF MODIFICATION 🔴
+
+            # 5. Clean the *original* raw text for cosine similarity
+            # This part remains the same. We still want the *full* text
+            # for our keyword matching (cosine similarity).
             for k in sections:
                 if sections[k]:
                     sections[k] = clean_text(sections[k])
