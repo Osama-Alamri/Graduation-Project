@@ -257,7 +257,6 @@ def process_all_resumes(folder_path):
         if filtered_lines:
             filtered_text = "\n".join(filtered_lines)
             experience_in_years = calculate_experience_python(filtered_text)
-        
         print(f"    - Total Experience Found: {experience_in_years} years")
 
         # Step 5: Clean all sections and prepare for saving
