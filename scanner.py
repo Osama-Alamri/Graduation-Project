@@ -120,14 +120,17 @@ def clean_text(text):
     # 2. Remove punctuation
     words = [re.sub(r'[^\w\s]', '', word) for word in words]
     
-    # 3. Remove non-ASCII characters
+    # 3. Remove all numbers (digits)
+    words = [re.sub(r'\d+', '', word) for word in words]
+
+    # 4. Remove non-ASCII characters
     words = [unicodedata.normalize('NFKD', w).encode('ascii', 'ignore').decode('utf-8', 'ignore') for w in words]
 
-    # 4. Remove stopwords (common words like 'the', 'a', 'is')
+    # 5. Remove stopwords (common words like 'the', 'a', 'is')
     stop_words = set(stopwords.words('english'))
     words = [word for word in words if word and word not in stop_words]
     
-    # 5. Lemmatize (turn words like 'running' into 'run')
+    # 6. Lemmatize (turn words like 'running' into 'run')
     lemmatizer = WordNetLemmatizer()
     words = [lemmatizer.lemmatize(word, pos='v') for word in words]
     

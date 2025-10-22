@@ -7,8 +7,9 @@ jd = {}
 jd['Skills'] = st.text_area("Skills")
 jd['Education'] = st.text_area("Education")
 jd['Experience'] = st.text_area("Experience")
+jd['Years of Experience'] = st.text_area("Years of Experience")
 jd['Projects'] = st.text_area("Projects")
-jd['Certificates'] = st.text_area("Certificates")
+jd['Certificates / Courses'] = st.text_area("Certificates")
 
 if st.button("Submit"):
     # Optional: save to JSON
