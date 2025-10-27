@@ -1,102 +1,106 @@
-
 import sqlite3
 
-# --- 1. الاتصال بقاعدة البيانات ---
-# هذا الكود سينشئ ملف "recruitment1.db" إذا لم يكن موجوداً
-# أو سيتصل به إذا كان موجوداً
-conn = sqlite3.connect('recruitment1.db')
+DB_FILE = "recruitment1.db"
 
-# "المؤشر" (cursor) هو الأداة التي نستخدمها لتنفيذ الأوامر
-c = conn.cursor()
+def create_tables():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
 
-# --- 2. تفعيل مفاتيح الربط (Foreign Keys) ---
-# خطوة مهمة لضمان ترابط الجداول بشكل صحيح
-c.execute("PRAGMA foreign_keys = ON;")
+    # === Users Table ===
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS Users (
+            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT CHECK(role IN ('hr', 'candidate')) NOT NULL
+        );
+    """)
 
-print("Conected to the DB..")
+    # === Jobs Table ===
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS Jobs (
+            job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hr_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            jd_skills TEXT,
+            jd_experience TEXT,
+            jd_education TEXT,
+            jd_certificates TEXT,
+            jd_projects TEXT,
+            jd_years_rule TEXT,
+            num_questions INTEGER DEFAULT 10,
+            cv_question_ratio INTEGER DEFAULT 50,
+            jd_question_ratio INTEGER DEFAULT 50,
+            question_difficulty TEXT DEFAULT 'Normal',
+            manual_questions TEXT,
+            FOREIGN KEY (hr_id) REFERENCES Users(user_id)
+        );
+    """)
 
-# --- 3. سنكتب أوامر إنشاء الجداول هنا ---
+    # === Applications Table ===
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS Applications (
+            application_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            candidate_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'applied',
+            resume_filename TEXT,
 
-# الجدول 1: المستخدمون (Users)
-c.execute('''
-CREATE TABLE IF NOT EXISTS Users (
-    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('hr', 'candidate'))
-);
-''')
-print("USER Table has been created")
+            scanned_experience_years TEXT,
+            scanned_skills_text TEXT,
+            scanned_experience_text TEXT,
+            scanned_education_text TEXT,
+            scanned_certificates_text TEXT,
+            scanned_projects_text TEXT,
 
+            match_overall_score REAL,
+            match_skills_score REAL,
+            match_experience_score REAL,
+            match_education_score REAL,
+            match_certificates_score REAL,
+            match_projects_score REAL,
+            match_years_score REAL,
 
-# الجدول 2: الوظائف (Jobs)
-c.execute('''
-CREATE TABLE IF NOT EXISTS Jobs (
-    job_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hr_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    jd_skills TEXT,
-    jd_education TEXT,
-    jd_experience TEXT,
-    jd_years_rule TEXT,
-    jd_projects TEXT,      
-    jd_certificates TEXT,
-    FOREIGN KEY (hr_id) REFERENCES Users (user_id)
-);
-''')
-print("JOBS Table has been created")
+            interview_status TEXT DEFAULT 'pending',
+            interview_questions_json TEXT,
+            interview_answers_json TEXT,
+            interview_ai_score REAL,
 
-# الجدول 3: التقديمات (Applications)
-c.execute('''
-CREATE TABLE IF NOT EXISTS Applications (
-    application_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id INTEGER NOT NULL,
-    candidate_id INTEGER NOT NULL,
-    status TEXT DEFAULT 'applied',
-    resume_filename TEXT,
-    
-    scanned_skills_text TEXT,
-    scanned_education_text TEXT,
-    scanned_experience_text TEXT,
-    scanned_experience_years REAL,
-    scanned_projects_text TEXT,
-    scanned_certificates_text TEXT,
-    
-    match_overall_score INTEGER,
-    match_skills_score INTEGER,
-    match_education_score INTEGER,
-    match_experience_score INTEGER,
-    match_years_score INTEGER,
-    match_projects_score INTEGER,
-    match_certificates_score INTEGER,
-    
-    interview_ai_score INTEGER,
-    interview_status TEXT DEFAULT 'pending',
-          
-    
+            FOREIGN KEY (job_id) REFERENCES Jobs(job_id),
+            FOREIGN KEY (candidate_id) REFERENCES Users(user_id)
+        );
+    """)
 
-    FOREIGN KEY (job_id) REFERENCES Jobs (job_id),
-    FOREIGN KEY (candidate_id) REFERENCES Users (user_id)
-);
-''')
-print("APPLICATION Table has been created")
+    conn.commit()
+    conn.close()
+    print("✅ Database initialized successfully.")
 
+def migrate_existing_jobs():
+    """Adds missing columns for interview settings if they don't exist."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
 
-try:
-    c.execute("ALTER TABLE Applications ADD COLUMN interview_questions_json TEXT;")
-    print("Added 'interview_questions_json' column to Applications table.")
-except sqlite3.OperationalError as e:
-    # This will probably print "duplicate column name: interview_questions_json"
-    print(f"Note: Failed to add column, it likely already exists. (Error: {e})")
+    # Columns to check/add
+    new_cols = [
+        ("num_questions", "INTEGER", "10"),
+        ("cv_question_ratio", "INTEGER", "50"),
+        ("jd_question_ratio", "INTEGER", "50"),
+        ("question_difficulty", "TEXT", "'Normal'"),
+        ("manual_questions", "TEXT", "NULL")
+    ]
 
-try:
-    c.execute("ALTER TABLE Applications ADD COLUMN interview_answers_json TEXT;")
-    print("Added 'interview_answers_json' column to Applications table.")
-except sqlite3.OperationalError as e:
-    print(f"Note: Failed to add 'interview_answers_json' column, it likely already exists. (Error: {e})")
+    c.execute("PRAGMA table_info(Jobs);")
+    existing = {row[1] for row in c.fetchall()}
 
-# --- 4. حفظ التغييرات وإغلاق الاتصال ---
-conn.commit() # حفظ أي تغييرات قمنا بها
-conn.close() # إغلاق الاتصال
+    for col, col_type, default in new_cols:
+        if col not in existing:
+            print(f"🆕 Adding missing column: {col}")
+            c.execute(f"ALTER TABLE Jobs ADD COLUMN {col} {col_type} DEFAULT {default};")
 
-print("ALL TABELS HAVE BEEN CREATED/UPDATED")
+    conn.commit()
+    conn.close()
+    print("✅ Migration complete: All columns ensured.")
+
+if __name__ == "__main__":
+    create_tables()
+    migrate_existing_jobs()
