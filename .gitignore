@@ -22,3 +22,13 @@ dist/
 
 # Local config
 *.env
+
+# === AI Model & Training Artifacts ===
+ai_detector/ai_detector_roberta_base/
+*.bin
+*.safetensors
+*.pt
+*.ckpt
+*.log
+*.tmp
+*.cache
