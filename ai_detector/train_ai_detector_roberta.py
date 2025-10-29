@@ -1,43 +1,46 @@
 import os
 import time
+import torch
 import pandas as pd
 from datasets import Dataset
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
-import transformers
+# نحاول استيراد matplotlib للرسم، ولو غير متوفر نكمل بدون رسم
+try:
+    import matplotlib.pyplot as plt
+    HAS_MPL = True
+except Exception:
+    HAS_MPL = False
+
 from transformers import (
     RobertaTokenizer,
     RobertaForSequenceClassification,
     Trainer,
     TrainingArguments,
 )
+import transformers
 
-# ============================================================ #
-#   AI Detector Training Script using RoBERTa                  #   
-# ============================================================ # 
-#   Setup                                                      #
-# ============================================================ #
-#   to start training, run: (in your terminal)                 #
-#   python ai_detector/train_ai_detector_roberta.py            #   
-# ============================================================ #
+# ============================================================
+# 🚀 AI Text Detector (v2 - GPU Optimized + Resume Checkpoint)
+# ============================================================
+
+print(f"[info] transformers version: {transformers.__version__}")
 
 # =========================
-# 1) Load data
+# 1️⃣ Load Data
 # =========================
 train_path = "ai_detector/data/train.csv"
 test_path  = "ai_detector/data/test.csv"
 
 train_df = pd.read_csv(train_path)
 test_df  = pd.read_csv(test_path)
-
 print(f"📊 Loaded train: {len(train_df)} | test: {len(test_df)}")
 
 # =========================
-# 2) Tokenizer
+# 2️⃣ Tokenizer
 # =========================
 tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-
-MAX_LENGTH = 256  # max token length
+MAX_LENGTH = 256
 
 def tokenize_function(example):
     return tokenizer(
@@ -60,12 +63,17 @@ train_dataset.set_format("torch", columns=["input_ids", "attention_mask", "label
 test_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
 # =========================
-# 3) Model
+# 3️⃣ Model (stronger dropout to reduce overconfidence)
 # =========================
-model = RobertaForSequenceClassification.from_pretrained("roberta-base", num_labels=2)
+model = RobertaForSequenceClassification.from_pretrained(
+    "roberta-base",
+    num_labels=2,
+    hidden_dropout_prob=0.2,
+    attention_probs_dropout_prob=0.2,
+)
 
 # =========================
-# 4) Metrics
+# 4️⃣ Metrics
 # =========================
 def compute_metrics(pred):
     labels = pred.label_ids
@@ -82,25 +90,25 @@ def compute_metrics(pred):
     }
 
 # =========================
-# 5) TrainingArguments (robust to old/new transformers)
+# 5️⃣ Training Arguments
 # =========================
-output_dir = "ai_detector/ai_detector_roberta_base"
+output_dir = "ai_detector/ai_detector_roberta_v2"
 os.makedirs(output_dir, exist_ok=True)
 
 common_kwargs = dict(
     output_dir=output_dir,
     learning_rate=2e-5,
-    per_device_train_batch_size=8,   # as requested
-    per_device_eval_batch_size=8,
-    num_train_epochs=3,              # as requested
-    weight_decay=0.01,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    num_train_epochs=2,
+    weight_decay=0.1,
     logging_dir=f"{output_dir}/logs",
+    save_steps=500,  # ✅ احفظ تقدمك كل 500 خطوة
     save_total_limit=2,
     report_to="none",
+    fp16=True,  # ✅ تدريب أسرع باستخدام Mixed Precision (على GPU فقط)
 )
 
-# Try modern keys first; if TypeError, fallback to older-compatible keys
-training_args = None
 try:
     training_args = TrainingArguments(
         evaluation_strategy="epoch",
@@ -111,17 +119,15 @@ try:
         **common_kwargs,
     )
 except TypeError:
-    # Older transformers: remove the newer strategy keys & best-model keys
     training_args = TrainingArguments(
-        # Older versions don’t accept evaluation/save/logging_strategy or load_best_model_at_end/metric_for_best_model
         do_eval=True,
-        logging_steps=500,     # periodic logs
-        save_steps=1000,       # periodic save
+        logging_steps=500,
         **common_kwargs,
     )
+    print("[warn] Using legacy TrainingArguments (no *strategy keys).")
 
 # =========================
-# 6) Trainer
+# 6️⃣ Trainer
 # =========================
 trainer = Trainer(
     model=model,
@@ -133,26 +139,63 @@ trainer = Trainer(
 )
 
 # =========================
-# 7) Train + Timer
+# 7️⃣ Resume from last checkpoint (NEW)
+# =========================
+last_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
+if last_checkpoint:
+    print(f"🔄 Found checkpoint, resuming from: {last_checkpoint}")
+else:
+    print("🆕 No checkpoint found, starting fresh training.")
+
+# =========================
+# 8️⃣ Train + GPU Setup
 # =========================
 print("\n🚀 Starting training...")
 start_time = time.time()
 
-trainer.train()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+if device.type == "cuda":
+    print("✅ GPU in use:", torch.cuda.get_device_name(0))
+    torch.backends.cudnn.benchmark = True
+    torch.cuda.empty_cache()
+    print("⚡ GPU ready with cuDNN acceleration.")
+else:
+    print("⚠️ CUDA not available, using CPU instead.")
+
+# 🔁 GPU memory monitor (every 10s)
+from threading import Thread
+import time as t
+
+def gpu_monitor():
+    while True:
+        if torch.cuda.is_available():
+            mem = torch.cuda.memory_allocated(0) / 1024**3
+            print(f"📊 GPU Memory: {mem:.2f} GB", end="\r")
+        t.sleep(10)
+
+if device.type == "cuda":
+    Thread(target=gpu_monitor, daemon=True).start()
+
+# 🚀 Train (resume if checkpoint exists)
+train_result = trainer.train(resume_from_checkpoint=last_checkpoint if last_checkpoint else None)
 
 elapsed = int(time.time() - start_time)
-minutes = elapsed // 60
-seconds = elapsed % 60
+minutes, seconds = divmod(elapsed, 60)
 print(f"\n⏱️ Training finished in {minutes} minutes {seconds} seconds")
 
 # =========================
-# 8) Save model
+# 9️⃣ Save model + labels
 # =========================
 trainer.save_model(output_dir)
-print("\n✅ Training completed! Model saved to:", output_dir)
+model.config.id2label = {0: "Human", 1: "AI"}
+model.config.label2id = {"Human": 0, "AI": 1}
+model.config.save_pretrained(output_dir)
+print("\n✅ Model saved to:", output_dir)
 
 # =========================
-# 9) Final eval
+# 🔟 Evaluation + Plot
 # =========================
 metrics = trainer.evaluate()
 print("\n📈 Final Evaluation on Test Set:")
@@ -161,3 +204,25 @@ for k, v in metrics.items():
         print(f"{k}: {v:.4f}")
     except Exception:
         print(f"{k}: {v}")
+
+if HAS_MPL:
+    loss_values = [x["loss"] for x in trainer.state.log_history if "loss" in x]
+    if loss_values:
+        plt.figure(figsize=(8, 4))
+        plt.plot(range(len(loss_values)), loss_values, label="Training Loss")
+        plt.xlabel("Steps")
+        plt.ylabel("Loss")
+        plt.title("📉 Training Loss Curve (v2 GPU + Resume)")
+        plt.legend()
+        plt.tight_layout()
+        out_png = f"{output_dir}/training_loss_curve.png"
+        plt.savefig(out_png)
+        try:
+            plt.show()
+        except Exception:
+            pass
+        print(f"\n📊 Loss curve saved to: {out_png}")
+    else:
+        print("\n[info] No loss logs were captured for plotting.")
+else:
+    print("\n[info] matplotlib not installed; skipping loss plot. Install via: pip install matplotlib")
