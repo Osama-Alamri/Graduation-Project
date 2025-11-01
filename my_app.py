@@ -86,6 +86,8 @@ if 'logged_in' not in st.session_state:
     st.session_state['interview_answers'] = []
     st.session_state['current_interview_questions'] = []
 
+    st.session_state['confirming_delete_job_id'] = None
+
 # --- 1. Database Connection Setup ---
 DB_FILE = "recruitment1.db"
 
@@ -132,6 +134,26 @@ def ensure_job_columns():
 ensure_job_columns()
 
 # --- 2. Database Helper Functions ---
+
+
+def delete_job(job_id):
+    """Deletes a job and all its associated applications."""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # 1. (الأهم) حذف كل طلبات التقديم المرتبطة بهذه الوظيفة أولاً
+        c.execute("DELETE FROM Applications WHERE job_id = ?", (job_id,))
+        
+        # 2. الآن يمكن حذف الوظيفة نفسها بأمان
+        c.execute("DELETE FROM Jobs WHERE job_id = ?", (job_id,))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error deleting job: {e}")
+        return False
 
 def get_jobs_by_hr(hr_id):
     """Fetches all jobs posted by a specific HR user."""
@@ -450,43 +472,53 @@ def save_interview_results(application_id, ai_score, status, answers_json):
 
 # --- 3. AI Helper Functions ---
 
-def generate_interview_questions(cv_text_dict, jd_text_dict, job_settings=None):
+def generate_interview_questions(job_title, cv_text_dict, jd_text_dict, job_settings=None):
     """Generates interview questions using GPT-4o-mini with job settings support."""
     if not client:
         return None  # Return None if client isn't initialized
 
-    # Default settings
-    num_q = 10
+    # --- 1. Set Defaults ---
+    num_q_total = 10
     cv_ratio = 50
-    jd_ratio = 50
     difficulty = "Normal"
-    manual_questions = ""
+    manual_questions_str = ""
 
+    # --- 2. Override with Job Settings (if they exist) ---
     if job_settings:
-        num_q = int(job_settings.get("num_questions", num_q) or num_q)
+        num_q_total = int(job_settings.get("num_questions", num_q_total) or num_q_total)
         cv_ratio = int(job_settings.get("cv_question_ratio", cv_ratio) or cv_ratio)
-        jd_ratio = int(job_settings.get("jd_question_ratio", 100 - cv_ratio))
         difficulty = str(job_settings.get("question_difficulty", difficulty) or difficulty)
-        manual_questions = job_settings.get("manual_questions", "") or ""
+        manual_questions_str = job_settings.get("manual_questions", "") or ""
 
-    # Ensure ratios sum to 100
-    if cv_ratio + jd_ratio != 100:
-        jd_ratio = 100 - cv_ratio
+    # --- 3. Calculate actual number of questions (THE FIX) ---
+    
+    # Handle manual questions first
+    manual_q_list = [q.strip() for q in manual_questions_str.split('\n') if q.strip()]
+    num_manual_q = len(manual_q_list)
+    
+    # Calculate how many AI questions are needed
+    num_ai_q_needed = num_q_total - num_manual_q
+    
+    # Ensure we don't go below zero
+    if num_ai_q_needed <= 0:
+        return manual_q_list[:num_q_total] 
 
-    # Combine the dictionaries into a formatted string
+    # Calculate split for the *remaining* AI questions
+    num_cv_q = round(num_ai_q_needed * (cv_ratio / 100))
+    num_jd_q = num_ai_q_needed - num_cv_q
+
+    # --- 4. Build the Prompt ---
     cv_prompt_text = "\n".join([f"CV {key}: {value}" for key, value in cv_text_dict.items() if value])
     jd_prompt_text = "\n".join([f"JD {key}: {value}" for key, value in jd_text_dict.items() if value])
 
     prompt = f"""
-    You are an expert HR interviewer. Based on the candidate's CV and the Job Description provided, generate exactly {num_q} unique interview questions.
-    - About {cv_ratio}% of questions must focus on their CV.
-    - About {jd_ratio}% of questions must assess their fit for the job requirements (JD).
-    - Difficulty level: {difficulty}.
-    - If manual questions are provided below, include them first (use them exactly as written), then fill the rest to reach {num_q} total.
+    You are an expert HR interviewer for the position of "{job_title}".
+    Please generate unique, {difficulty} difficulty interview questions.
 
-    Manual Questions (if any):
-    {manual_questions if manual_questions.strip() else "None"}
+    I need exactly {num_cv_q} questions based on the CANDIDATE CV.
+    I need exactly {num_jd_q} questions based on the JOB DESCRIPTION.
 
+    This will be a total of {num_ai_q_needed} AI-generated questions.
     Return ONLY a JSON array (list) of strings; no keys, no extra text.
 
     ---CANDIDATE CV---
@@ -497,34 +529,33 @@ def generate_interview_questions(cv_text_dict, jd_text_dict, job_settings=None):
     """
 
     try:
+        # --- 5. Call AI ---
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": prompt}],
-            response_format={"type": "json_object"}  # coerces to JSON
+            response_format={"type": "json_object"}
         )
         questions_json = response.choices[0].message.content
 
-        # Robust parse
+        # --- 6. Parse Response ---
         data = json.loads(questions_json)
+        ai_questions_list = []
         if isinstance(data, dict):
-            # some providers wrap as {"questions":[...]} — try both
-            if "questions" in data and isinstance(data["questions"], list):
-                return data["questions"]
-            # or {"list":[...]} fallback
-            if "list" in data and isinstance(data["list"], list):
-                return data["list"]
-            # flatten any values that are list
             for v in data.values():
                 if isinstance(v, list):
-                    return v
-            return []
+                    ai_questions_list = v
+                    break
         elif isinstance(data, list):
-            return data
-        else:
-            return []
+            ai_questions_list = data
+        
+        # --- 7. Combine and Return ---
+        final_questions = manual_q_list + ai_questions_list
+        
+        return final_questions[:num_q_total]
+
     except Exception as e:
         print(f"Error generating questions: {e}")
-        return None
+        return None # Return None on failure
 
 def grade_interview_answers(cv_text_dict, jd_text_dict, questions, answers):
     """Grades the interview answers using GPT-4o-mini."""
@@ -998,18 +1029,25 @@ elif selected_page == "My Applications":
                         "Projects": app_details['jd_projects']
                     }
 
-                    questions = generate_interview_questions(cv_text_dict, jd_text_dict, job_settings=job_settings)
+                    # --- الكود الجديد ---
+                    questions = generate_interview_questions(
+                        app_details['title'],
+                        cv_text_dict, 
+                        jd_text_dict, 
+                        job_settings=job_settings
+                    )
 
                     # fallback length check
-                    expected_n = int(job_settings.get("num_questions") or 10)
-                    if questions and isinstance(questions, list) and len(questions) == expected_n:
+                    # --- الكود الجديد ---
+                    if questions and isinstance(questions, list) and len(questions) >= 1:
+                        # طالما حصلنا على سؤال واحد على الأقل، المقابلة صالحة
                         save_interview_questions(app_id, json.dumps(questions))
+                        st.session_state['current_interview_questions'] = questions
                     else:
-                        st.error("Failed to generate interview questions. Please try again later.")
+                        # هنا فشل الـ AI تماماً في توليد أي سؤال
+                        st.error("Failed to generate any interview questions. Please try again later.")
                         st.session_state['active_interview_id'] = None
                         st.rerun()
-
-                st.session_state['current_interview_questions'] = questions
 
         # --- 2. Display Chat Interface ---
         st.subheader("AI Interview (In Progress)")
@@ -1202,7 +1240,39 @@ elif selected_page == "View Applications":
                         'interview_status': 'Interview Status'
                     })
 
+
                     st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+                    st.divider() 
+
+                    # --- 2.5 منطق حذف الوظيفة (الجديد) ---
+                    if st.session_state.get('confirming_delete_job_id') == selected_job_id:
+                        
+                        st.error(f"**⚠️ Confirm Deletion**\n\nAre you sure you want to delete the job '{selected_title}'? \n\nThis will **permanently delete all applications** associated with it. This action cannot be undone.")
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("YES, make the delete", type="primary"):
+                                success = delete_job(selected_job_id)
+                                st.session_state['confirming_delete_job_id'] = None
+                                if success:
+                                    st.success(f"Job has been deleted'{selected_title}' succefully and all its appilcations.")
+                                    st.rerun() # أعد تحميل الصفحة لتحديث قائمة الوظائف
+                                else:
+                                    st.error("something went wrong while deleting the Job")
+                        
+                        with col2:
+                            if st.button("Cancel"):
+                                st.session_state['confirming_delete_job_id'] = None
+                                st.rerun()
+
+                    else:
+                        # إظهار زر الحذف العادي
+                        if st.button("🗑️ Delete this Job", type="secondary"):
+                            # عند الضغط عليه، قم بضبط متغير الحالة وأعد التحميل
+                            st.session_state['confirming_delete_job_id'] = selected_job_id
+                            st.rerun()
+
 
                     # --- 3. Select Candidate for Detail View ---
                     st.subheader("View Application Details")
@@ -1305,8 +1375,3 @@ elif selected_page == "Account":
                     st.success(message)
                 else:
                     st.error(message)
-
-# --- Fallback (should not trigger) ---
-elif selected_page in ["View Applications"]:
-    st.header(selected_page)
-    st.info("This page is under construction.")
