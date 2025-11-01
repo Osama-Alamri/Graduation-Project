@@ -165,21 +165,34 @@ def get_applications_for_job(job_id):
     conn.close()
     return applications
 
-def safe_compute_similarity(text1, text2):
+def safe_compute_similarity(text1_jd, text2_cv):
     """
-    Safe wrapper for compute_similarity that handles empty strings
-    to prevent TfidfVectorizer from crashing.
+    A safer, more logical wrapper for compute_similarity.
+    text1_jd = The text from the Job Description
+    text2_cv = The text from the Candidate's CV
     """
-    text1_cleaned = str(text1).strip()
-    text2_cleaned = str(text2).strip()
+    jd_cleaned = str(text1_jd).strip()
+    cv_cleaned = str(text2_cv).strip()
 
-    if not text1_cleaned and not text2_cleaned:
-        return 0.0
-    if not text1_cleaned or not text2_cleaned:
-        return 0.0
+    # Case 1
+    # (JD is empty, CV is empty)
+    if not jd_cleaned and not cv_cleaned:
+        return 1.0  # 100%
+    
+    # Case 2
+    # (JD has content, CV is empty)
+    if jd_cleaned and not cv_cleaned:
+        return 0.0  # 0%
 
+    # Case 3
+    # (JD is empty, CV has content) 
+    if not jd_cleaned and cv_cleaned:
+        return 1.0  # 100%
+
+    # Case 4
+    # (JD has content, CV has content)
     try:
-        return compute_similarity(text1_cleaned, text2_cleaned)
+        return compute_similarity(jd_cleaned, cv_cleaned)
     except ValueError as e:
         if 'empty vocabulary' in str(e):
             return 0.0
@@ -360,23 +373,26 @@ def create_application(app_data):
         print(f"Error creating application: {e}")
         return False
 
-def get_pending_interviews(candidate_id):
-    """Fetches applications that are ready for an interview."""
+def get_applications_for_candidate(candidate_id):
+    """Fetches ALL applications for a specific candidate."""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("""
-        SELECT
-            A.application_id,
-            J.title AS job_title
+        SELECT 
+            A.application_id, 
+            J.title AS job_title,
+            A.match_overall_score,
+            A.interview_ai_score,
+            A.interview_status,
+            A.status
         FROM Applications A
         JOIN Jobs J ON A.job_id = J.job_id
         WHERE A.candidate_id = ?
-          AND A.match_overall_score > 10
-          AND A.interview_status = 'pending'
+        ORDER BY A.application_id DESC
     """, (candidate_id,))
-    interviews = c.fetchall()
+    applications = c.fetchall()
     conn.close()
-    return interviews
+    return applications
 
 def get_full_application_details(application_id):
     """Fetches all CV and JD text for a specific application."""
@@ -1075,22 +1091,76 @@ elif selected_page == "My Applications":
                     else:
                         st.error("Failed to save your interview results. Please contact support.")
 
-    # === STATE 1: Default View (List of Applications) ===
+# === STATE 1: Default View (List of Applications) ===
     else:
-        pending_interviews = get_pending_interviews(st.session_state['user_id'])
+        # 1. Fetch ALL applications using the new function
+        all_apps = get_applications_for_candidate(st.session_state['user_id'])
+        
+        # 2. Filter them into 3 lists
+        pending_list = [
+            app for app in all_apps 
+            if app['interview_status'] == 'pending' and app['match_overall_score'] > 10
+        ]
+        completed_list = [
+            app for app in all_apps 
+            if app['interview_status'] == 'completed'
+        ]
+        other_list = [
+            app for app in all_apps 
+            if app['match_overall_score'] <= 10 and app['interview_status'] == 'pending'
+        ]
 
-        if not pending_interviews:
-            st.info("You have no pending interviews. Apply for a job to get started!")
+        if not all_apps:
+            st.info("You have not applied for any jobs yet. Go to 'Find Jobs' to get started!")
         else:
-            st.subheader("You have qualified for an interview for the following jobs:")
-            for interview in pending_interviews:
-                st.markdown(f"**Job:** {interview['job_title']}")
-                if st.button("Start AI Interview", key=f"start_{interview['application_id']}"):
-                    st.session_state['active_interview_id'] = interview['application_id']
-                    st.session_state['current_question_index'] = 0
-                    st.session_state['interview_answers'] = []
-                    st.session_state['current_interview_questions'] = []
-                    st.rerun()
+            # 3. Create Tabs
+            tab1, tab2, tab3 = st.tabs([
+                f"Pending Interviews ({len(pending_list)})", 
+                f"Completed ({len(completed_list)})", 
+                f"Other Applications ({len(other_list)})"
+            ])
+
+            # --- Tab 1: Pending Interviews ---
+            with tab1:
+                st.subheader("Interviews Awaiting Your Response")
+                if not pending_list:
+                    st.info("You have no pending interviews.")
+                else:
+                    for app in pending_list:
+                        st.markdown(f"**Job:** {app['job_title']}")
+                        st.caption(f"Your CV Match score was {app['match_overall_score']}%")
+                        if st.button("Start AI Interview", key=f"start_{app['application_id']}"):
+                            st.session_state['active_interview_id'] = app['application_id']
+                            st.session_state['current_question_index'] = 0
+                            st.session_state['interview_answers'] = []
+                            st.session_state['current_interview_questions'] = []
+                            st.session_state['last_displayed_index'] = None # Reset chat logic
+                            st.rerun()
+
+            # --- Tab 2: Completed Applications ---
+            with tab2:
+                st.subheader("Your Completed Applications")
+                if not completed_list:
+                    st.info("You have not completed any interviews yet.")
+                else:
+                    for app in completed_list:
+                        with st.container(border=True):
+                            st.markdown(f"**Job:** {app['job_title']}")
+                            col1, col2 = st.columns(2)
+                            col1.metric("Your CV Match Score", f"{app['match_overall_score']}%")
+                            col2.metric("Your AI Interview Score", f"{app['interview_ai_score']}")
+
+            # --- Tab 3: Other Applications ---
+            with tab3:
+                st.subheader("Other Submitted Applications")
+                if not other_list:
+                    st.info("No other applications found.")
+                else:
+                    st.write("These are applications that did not proceed to the interview stage.")
+                    for app in other_list:
+                        with st.container(border=True):
+                            st.markdown(f"**Job:** {app['job_title']}")
+                            st.metric("Your CV Match Score", f"{app['match_overall_score']}%", help="This score did not meet the minimum threshold for an interview.")
 
 # =========================
 # === VIEW APPLICATIONS ===
