@@ -1241,6 +1241,19 @@ elif selected_page == "View Applications":
                     })
 
 
+                    df_display["Final Score"] = (
+                        df_display["CV Match %"].fillna(0) +
+                        df_display["Interview Score"].fillna(0)
+                    )
+
+                    df_display = df_display.sort_values(
+                        by=["Final Score"],
+                        ascending=[False],
+                        na_position="last"
+                    ).reset_index(drop=True)
+
+                    df_display.insert(0, "Rank", df_display.index + 1)
+
                     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
                     st.divider() 
@@ -1353,8 +1366,53 @@ elif selected_page == "Account":
     if not st.session_state['logged_in']:
         st.error("You must be logged in to view this page.")
     else:
-        st.subheader("Change Your Password")
 
+        st.subheader("Profile")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Username:** {st.session_state['username']}")
+        with col2:
+            role_label = "HR" if st.session_state['role'] == 'hr' else "Candidate"
+            st.write(f"**Role:** {role_label}")
+
+        st.divider()
+
+
+                # --- Quick Stats ---
+        st.subheader("Quick Stats")
+
+        if st.session_state['role'] == 'hr':
+            jobs = get_jobs_by_hr(st.session_state['user_id'])
+            total_jobs = len(jobs)
+
+            total_apps = 0
+            total_completed = 0
+
+            for job in jobs:
+                apps = get_applications_for_job(job['job_id'])
+                total_apps += len(apps)
+                total_completed += sum(1 for a in apps if a['interview_status'] == 'completed')
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Jobs Posted", total_jobs)
+            c2.metric("Total Applications", total_apps)
+            c3.metric("Completed Interviews", total_completed)
+
+        else:
+            apps = get_applications_for_candidate(st.session_state['user_id'])
+            total_apps = len(apps)
+            completed = sum(1 for a in apps if a['interview_status'] == 'completed')
+
+            
+            c1, c2 = st.columns(2)
+            c1.metric("Applications", total_apps)
+            c2.metric("Completed Interviews", completed)
+
+        st.divider()
+
+
+        st.subheader("Change Your Password")
         with st.form("change_password_form", clear_on_submit=True):
             current_pass = st.text_input("Current Password", type="password")
             new_pass = st.text_input("New Password", type="password")
@@ -1375,3 +1433,12 @@ elif selected_page == "Account":
                     st.success(message)
                 else:
                     st.error(message)
+                    
+        st.subheader("Log Out")
+        if st.button("Log Out", key="logout_from_account"):
+            st.session_state['logged_in'] = False
+            st.session_state['username'] = None
+            st.session_state['role'] = None
+            st.session_state['user_id'] = None
+            st.rerun()
+
