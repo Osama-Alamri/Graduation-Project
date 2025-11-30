@@ -15,7 +15,7 @@ from nltk.tokenize import word_tokenize
 
 # --- Initial Setup ---
 
-# This function checks if you have the necessary NLTK packages and downloads them if not.
+# simple function to check NLTK libraries and download it if missing
 def setup_nltk():
     """Checks for NLTK resources and downloads if missing."""
     resources = ["punkt", "stopwords", "wordnet"]
@@ -35,7 +35,7 @@ def setup_nltk():
 # --- PDF and Text Processing Functions ---
 
 def extract_text_from_pdf(file_path):
-    """Extracts all text from a given PDF file."""
+    """read all pages from the PDF and join them as one text string."""
     text = ""
     try:
         with pdfplumber.open(file_path) as pdf:
@@ -57,10 +57,10 @@ def extract_text_from_pdf(file_path):
 
 def extract_sections(text):
     """
-    Extracts content into predefined sections from resume text.
-    It finds all headers first, then slices the text to be more accurate.
+    split the resume text into sections (experience, skills, etc.)
+    by finding the section titles first then cutting the text between them.
     """
-    # These are the keywords we'll look for as section headers.
+    # words we treat as section titles.
     section_keywords = {
         'Experience': ['experience', 'work experience', 'professional experience', 'employment history', 'relevant experience', 'Professional Experience', 'work history'],
         'Education': ['education', 'academic background', 'education and training'],
@@ -162,7 +162,7 @@ def calculate_experience_python(text: str) -> float:
         
         if len(matches) >= 2:
             try:
-                # --- Parse Start Date ---
+                # --- Parse srtart Date ---
                 start_match = matches[0].groups()
                 if start_match[0]: # "Month YYYY" format
                     start_month = month_map[start_match[1].lower()[:3]]
@@ -184,7 +184,7 @@ def calculate_experience_python(text: str) -> float:
                         end_month = int(end_match[4])
                         end_year = int(end_match[5])
 
-                    # Use the 1st of the *next* month for correct duration
+                    # to Use the 1st of the *next* month for corect duration
                     if end_month == 12:
                         end_date = date(end_year + 1, 1, 1)
                     else:
@@ -193,7 +193,7 @@ def calculate_experience_python(text: str) -> float:
                 if start_date and end_date:
                     intervals.append((start_date, end_date))
             except (ValueError, TypeError, IndexError):
-                # Silently skip lines that look like dates but aren't
+                #  skip lines that look like dates but aren't
                 pass
 
     if not intervals: return 0.0
@@ -299,9 +299,7 @@ if __name__ == "__main__":
     if not df.empty:
         output_path = os.path.join(output_folder, output_filename)
         
-        # --- Universal Separator Logic ---
-        # Using a semicolon ';' is often more compatible with versions of Excel
-        # in regions that use a comma ',' as a decimal separator.
+       
         csv_separator = ";"
         
         print(f"\nUsing '{csv_separator}' as the CSV separator for better Excel compatibility.")

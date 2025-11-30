@@ -76,11 +76,11 @@ def create_tables():
     print("✅ Database initialized successfully.")
 
 def migrate_existing_jobs():
-    """Adds missing columns for interview settings if they don't exist."""
+    """small helper to add the new interview columns to Jobs table if the DB is old."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    # Columns to check/add
+    # columns we expect to have in Jobs table
     new_cols = [
         ("num_questions", "INTEGER", "10"),
         ("cv_question_ratio", "INTEGER", "50"),
