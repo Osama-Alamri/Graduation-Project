@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/PROJECT_LOGO.png" alt="AI Recruitment Logo" width="260">
-</p>
-
 # AI-Powered Recruitment and Candidate Ranking System  
 ![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Web%20App-FF4B4B?logo=streamlit)
@@ -15,6 +11,12 @@ A full **AI-powered recruitment platform** that automates resume parsing, CV–J
 
 🔗 **GitHub Repository:**  
 https://github.com/Osama-Alamri/Graduation-Project.git
+
+---
+
+<p align="center">
+  <img src="assets/PROJECT_LOGO.png" alt="AI Recruitment Logo" width="260">
+</p>
 
 ---
 
