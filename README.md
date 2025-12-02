@@ -73,8 +73,6 @@ pip install -r requirements.txt
 
 This system **requires an OpenAI API Key** to run AI interviews and scoring.
 
-✔️ بدون API KEY النظام يعمل، لكن **ميزة المقابلة الذكية (AI Interview) لن تعمل**.
-
 ## **Place your API key inside `.env` file**
 
 Create a file named:
@@ -120,7 +118,7 @@ streamlit run app.py
 
 Then open the system in your browser:
 ```
-http://localhost:8501
+http://localhost:8000
 ```
 
 ---
