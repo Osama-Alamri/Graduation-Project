@@ -71,8 +71,7 @@ pip install -r requirements.txt
 
 AI features require an **OpenAI API Key**.
 
-✔ النظام يشتغل بدون API KEY  
-✖ لكن **المقابلة الذكية AI Interview لن تعمل**
+**
 
 Make a `.env` file:
 
@@ -101,7 +100,6 @@ http://localhost:8501
 <br>
 
 # 📦 System Components  
-*(مقسمة داخل Expanders — شكل احترافي)*
 
 ---
 
