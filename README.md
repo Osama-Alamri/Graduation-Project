@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="AI Recruitment Logo" width="260">
+</p>
+
 # AI-Powered Recruitment and Candidate Ranking System  
 ![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Web%20App-FF4B4B?logo=streamlit)
@@ -7,165 +11,188 @@
 ![NLTK](https://img.shields.io/badge/NLTK-Text%20Processing-green)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A complete **AI-powered recruitment and evaluation system** that performs automated resume parsing, smart CV–JD matching, AI-generated interview questions, LLM interview scoring, and HR candidate ranking.
+A full **AI-powered recruitment platform** that automates resume parsing, CV–JD matching, LLM-driven interviews, evaluation scoring, and HR candidate ranking.
+
+🔗 **GitHub Repository:**  
+https://github.com/Osama-Alamri/Graduation-Project.git
 
 ---
 
-# 🧩 Libraries & What They Do
+# 📌 Overview
 
-Below is a simple explanation of the most important libraries used in the project:
-
-### **🔹 Streamlit**
-Framework for building the interactive web interface (candidate portal, HR dashboard).
-
-### **🔹 SQLite3**
-Lightweight database used to store users, jobs, applications, scoring, and interview transcripts.
-
-### **🔹 OpenAI (GPT-4o-mini)**
-Used for:
-- Generating interview questions  
-- Grading interview answers  
-- Understanding CV/JD content  
-
-**Requires an API key → must be placed in `.env` file**
+This system provides:
+- Resume analysis using NLP  
+- TF-IDF + cosine similarity scoring  
+- Dynamic weight-based evaluation  
+- AI-driven interview generation & scoring  
+- HR dashboard for ranking and analytics  
+- Candidate portal for CV submission and interview access  
 
 ---
 
-### **🔹 pdfplumber / PyPDF2**
-Extract text from uploaded PDF resumes.
+# 🧩 Core Libraries (Quick Summary)
 
-### **🔹 NLTK**
-Used for:
-- Tokenization  
-- Stopword removal  
-- Lemmatization  
-- Cleaning resume content  
+### • Streamlit  
+Frontend framework for the UI interfaces.
 
-### **🔹 Scikit-Learn**
-Provides:
-- TF-IDF vectorization  
-- Cosine similarity for CV–JD matching  
+### • SQLite  
+Database engine for storing system data.
 
-### **🔹 Plotly**
-Creates interactive radar charts for candidate evaluation visualization.
+### • OpenAI GPT-4o-mini  
+Generates interview questions and grades answers.
 
-### **🔹 Passlib**
-Used to securely hash passwords before saving them in the database.
+### • Scikit-Learn  
+Handles TF-IDF vectorization and similarity scores.
+
+### • NLTK  
+Used to preprocess CV text.
+
+### • Plotly  
+Creates radar charts to visualize candidate performance.
 
 ---
 
 # ⚙️ Installation & Setup
 
-## **1. Clone the Project**
+## 1) Clone the Project
 ```bash
-git clone https://github.com/yourusername/ai-recruitment.git
-cd ai-recruitment
+git clone https://github.com/Osama-Alamri/Graduation-Project.git
+cd Graduation-Project
 ```
 
-## **2. Install Required Libraries**
+## 2) Install Required Libraries
 ```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-# 🔐 API Key Requirement (Very Important)
+# 🔐 API Key (Required for AI Interview)
 
-This system **requires an OpenAI API Key** to run AI interviews and scoring.
+AI features require an **OpenAI API Key**.
 
-## **Place your API key inside `.env` file**
+✔ النظام يشتغل بدون API KEY  
+✖ لكن **المقابلة الذكية AI Interview لن تعمل**
 
-Create a file named:
-
-```
-.env
-```
-
-Inside it put:
+Make a `.env` file:
 
 ```
 OPENAI_API_KEY=your_api_key_here
 ```
 
-Then make sure your system loads environment variables automatically.
+Place `.env` in the root directory of the project.
 
 ---
 
-# 🗄 Database Initialization
+# ▶️ Running the System
 
-Before running the app for the first time:
-
-```bash
-python db_setup.py
-```
-
-This will create:
-
-- Users Table  
-- Jobs Table  
-- Applications Table  
-- Add missing migration columns automatically  
-
----
-
-# ▶️ Running the Application
-
-Start the Streamlit interface:
-
+Start the app:
 ```bash
 streamlit run app.py
 ```
 
-Then open the system in your browser:
+Then open:
 ```
-http://localhost:8000
+http://localhost:8501
 ```
 
 ---
 
-# 🧠 System Components
+<br>
 
-## **1. Resume Parsing Pipeline**
-Extracts and cleans:
-- Skills  
-- Education  
-- Certificates  
-- Projects  
-- Experience  
-- Working years  
+# 📦 System Components  
+*(مقسمة داخل Expanders — شكل احترافي)*
 
-## **2. Candidate Matching Engine**
-Uses TF-IDF + Cosine Similarity with dynamic weights.
+---
 
-## **3. AI Interview Engine**
+<details>
+  <summary><b>🧠 Resume Parsing Pipeline</b></summary>
+  <br>
+
+- Extracts PDF text  
+- Detects CV sections (skills, education, projects…)  
+- Cleans & preprocesses using NLTK  
+- Calculates real working years  
+- Generates structured CV output for scoring  
+
+</details>
+
+---
+
+<details>
+  <summary><b>🎯 Candidate Matching Engine</b></summary>
+  <br>
+
+Uses **TF-IDF + Cosine Similarity** with weighted scoring:
+
+| Section | Weight |
+|--------|--------|
+| Years of Experience | 10% |
+| Skills | 25% |
+| Experience | 15% |
+| Education | 20% |
+| Certificates | 30% |
+
+Outputs:
+- Section similarity  
+- Experience validation  
+- Final match score (%)  
+
+</details>
+
+---
+
+<details>
+  <summary><b>🤖 AI Interview Engine</b></summary>
+  <br>
+
 - Auto-generated questions  
 - Difficulty levels  
-- CV-based + JD-based questions  
-- Real-time chat UI  
-- Automatic LLM scoring  
-- Transcript stored in the DB  
+- CV-based + JD-based  
+- Chat-style UI  
+- AI scoring (0–100)  
+- Transcript saved into the database  
 
-## **4. HR Dashboard**
-- Leaderboard  
-- Candidate ranking  
-- Radar charts  
-- Full application breakdown  
+</details>
 
 ---
 
-# 🗄 Database Schema
+<details>
+  <summary><b>📊 HR Dashboard</b></summary>
+  <br>
 
-## **Users Table**
+- Candidate leaderboard  
+- Radar charts  
+- Application breakdown  
+- View match score + interview score  
+
+</details>
+
+---
+
+<br>
+
+# 🗄 Database Schema (Expanded for Detail)
+
+<details>
+  <summary><b>👥 Users Table</b></summary>
+  <br>
+
 | Column | Type | Description |
 |--------|------|-------------|
 | user_id | INTEGER | Primary key |
 | username | TEXT | Unique |
-| password_hash | TEXT | Hashed password |
+| password_hash | TEXT | Secure hash |
 | role | TEXT | hr / candidate |
+
+</details>
 
 ---
 
-## **Jobs Table**
+<details>
+  <summary><b>📌 Jobs Table</b></summary>
+  <br>
+
 | Column | Type | Description |
 |--------|------|-------------|
 | job_id | INTEGER | Primary key |
@@ -175,50 +202,59 @@ Uses TF-IDF + Cosine Similarity with dynamic weights.
 | education | TEXT | Education requirements |
 | certificates | TEXT | Certifications |
 | projects | TEXT | Required projects |
-| years_rule | TEXT | e.g., "3-5", "5+", "2" |
-| num_questions | INTEGER | Interview questions |
+| years_rule | TEXT | "3-5", "5+" ... |
+| num_questions | INTEGER | Interview Q count |
 | cv_question_ratio | INTEGER | CV % |
 | jd_question_ratio | INTEGER | JD % |
-| question_difficulty | TEXT | Simple / Normal / Professional |
-| manual_questions | TEXT | Optional HR-added questions |
+| question_difficulty | TEXT | Simple/Normal/Professional |
+| manual_questions | TEXT | Custom HR questions |
+
+</details>
 
 ---
 
-## **Applications Table**
+<details>
+  <summary><b>📄 Applications Table</b></summary>
+  <br>
+
 | Column | Type | Description |
 |--------|------|-------------|
 | application_id | INTEGER | Primary key |
 | job_id | INTEGER | Job ID |
 | user_id | INTEGER | Candidate ID |
-| resume_filename | TEXT | Uploaded file |
+| resume_filename | TEXT | Uploaded CV |
 | scanned_experience_years | REAL | Years |
-| scanned_skills_text | TEXT | CV skills |
-| scanned_experience_text | TEXT | CV experience |
-| scanned_education_text | TEXT | CV education |
-| scanned_certificates_text | TEXT | CV certificates |
-| scanned_projects_text | TEXT | CV projects |
+| scanned_skills_text | TEXT | Skills |
+| scanned_experience_text | TEXT | Experience |
+| scanned_education_text | TEXT | Education |
+| scanned_certificates_text | TEXT | Certificates |
+| scanned_projects_text | TEXT | Projects |
 | match_scores | REAL | Similarity results |
-| interview_questions_json | TEXT | AI questions |
-| interview_answers_json | TEXT | Candidate answers |
-| interview_ai_score | REAL | Final score |
+| interview_questions_json | TEXT | AI Questions |
+| interview_answers_json | TEXT | Answers |
+| interview_ai_score | REAL | Score |
 | interview_status | TEXT | pending/completed |
 | status | TEXT | Application status |
+
+</details>
 
 ---
 
 # 📂 Project Structure
 
 ```
-📁 ai-recruitment
+📁 Graduation-Project
  ├── app.py
- ├── db_setup.py
  ├── scanner.py
  ├── matcher.py
+ ├── db_setup.py
+ ├── job_description.json
  ├── requirements.txt
  ├── .env
- ├── data/
  ├── resumes/
- ├── assets/
+ ├── data/
+ ├── uploads/
+ ├── ai_detector/
  └── README.md
 ```
 
@@ -226,5 +262,5 @@ Uses TF-IDF + Cosine Similarity with dynamic weights.
 
 # 📄 License (MIT)
 
-See below for full license.
+See: **License** file in project root.
 
