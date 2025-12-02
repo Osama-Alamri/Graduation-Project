@@ -32,7 +32,7 @@ This system provides:
 
 ---
 
-# 🧩 Core Libraries (Quick Summary)
+# 🧩 Core Libraries
 
 ### • Streamlit  
 Frontend framework for the UI interfaces.
