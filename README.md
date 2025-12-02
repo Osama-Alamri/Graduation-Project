@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="AI Recruitment Logo" width="260">
+  <img src="assets/PROJECT_LOGO.png" alt="AI Recruitment Logo" width="260">
 </p>
 
 # AI-Powered Recruitment and Candidate Ranking System  
