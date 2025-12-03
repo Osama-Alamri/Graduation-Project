@@ -172,7 +172,7 @@ Outputs:
 
 <br>
 
-# 🗄 Database Schema (Expanded for Detail)
+# 🗄 Database Schema
 
 <details>
   <summary><b>👥 Users Table</b></summary>
@@ -264,3 +264,15 @@ Outputs:
 
 See: **License** file in project root.
 
+---
+
+## 👥 Project Contributors
+
+- **Ibrahim Al-Atyan** – Developer  
+- **Osama Alamri** – Developer  
+- **Fahad Alahmari** – Developer  
+
+## 🎓 Supervised By
+- **Dr. Khalid Alobaid**
+
+---
